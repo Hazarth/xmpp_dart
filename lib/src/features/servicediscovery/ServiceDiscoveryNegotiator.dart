@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:ffi';
 
 import 'package:collection/collection.dart' show IterableExtension;
 import 'package:xmpp_stone/src/Connection.dart';
+import 'package:xmpp_stone/src/data/Jid.dart';
 import 'package:xmpp_stone/src/elements/XmppAttribute.dart';
 import 'package:xmpp_stone/src/elements/XmppElement.dart';
 import 'package:xmpp_stone/src/elements/nonzas/Nonza.dart';
@@ -11,6 +13,7 @@ import 'package:xmpp_stone/src/features/Negotiator.dart';
 import 'package:xmpp_stone/src/features/servicediscovery/Feature.dart';
 import 'package:xmpp_stone/src/features/servicediscovery/Identity.dart';
 import 'package:xmpp_stone/src/features/servicediscovery/ServiceDiscoverySupport.dart';
+import 'package:xmpp_stone/src/features/servicediscovery/SupportSet.dart';
 import 'Feature.dart';
 
 class ServiceDiscoveryNegotiator extends Negotiator {
@@ -48,6 +51,8 @@ class ServiceDiscoveryNegotiator extends Negotiator {
 
   final List<Identity> _supportedIdentities = <Identity>[];
 
+  Completer<List<Feature>> _completer = Completer();
+
   Stream<XmppElement> get errorStream {
     return _errorStreamController.stream;
   }
@@ -78,10 +83,10 @@ class ServiceDiscoveryNegotiator extends Negotiator {
     } else if (state == NegotiatorState.DONE) {}
   }
 
-  void _sendServiceDiscoveryRequest() {
+  void _sendServiceDiscoveryRequest({Jid? to}) {
     var request = IqStanza(AbstractStanza.getRandomId(), IqStanzaType.GET);
     request.fromJid = _connection.fullJid;
-    request.toJid = _connection.serverName;
+    request.toJid = to == null ? _connection.serverName : to;
     var queryElement = XmppElement();
     queryElement.name = 'query';
     queryElement.addAttribute(
@@ -89,6 +94,7 @@ class ServiceDiscoveryNegotiator extends Negotiator {
     request.addChild(queryElement);
     fullRequestStanza = request;
     _connection.writeStanza(request);
+    _completer = Completer();
   }
 
   void _parseFullInfoResponse(IqStanza stanza) {
@@ -114,6 +120,7 @@ class ServiceDiscoveryNegotiator extends Negotiator {
     subscription.cancel();
     _connection.connectionNegotiationManager.addFeatures(_supportedFeatures);
     state = NegotiatorState.DONE;
+    _completer.complete(_supportedFeatures);
   }
 
   bool isFeatureSupported(String feature) {
@@ -153,7 +160,40 @@ class ServiceDiscoveryNegotiator extends Negotiator {
 }
 
 extension ServiceDiscoveryExtension on Connection {
+
   List<Feature> getSupportedFeatures() {
     return ServiceDiscoveryNegotiator.getInstance(this).getSupportedFeatures();
+  }
+
+  Future<SupportSet> getSupportedFeaturesByJid(Jid jid){
+
+    var request = IqStanza(AbstractStanza.getRandomId(), IqStanzaType.GET);
+    request.fromJid = this.fullJid;
+    request.toJid = jid;
+    var queryElement = XmppElement();
+    queryElement.name = 'query';
+    queryElement.addAttribute(XmppAttribute('xmlns', 'http://jabber.org/protocol/disco#info'));
+
+    request.addChild(queryElement);
+    return this.queryStanza(request).then((stanza) {
+      List<Feature> features = List.empty(growable: true);
+      List<Identity> identities = List.empty(growable: true);
+      if (stanza is IqStanza) {
+
+        if (stanza.type == IqStanzaType.RESULT) {
+          var queryStanza = stanza.getChild('query');
+          if (queryStanza != null) {
+            queryStanza.children.forEach((element) {
+              if (element is Identity) {
+                identities.add(element);
+              } else if (element is Feature) {
+                features.add(element);
+              }
+            });
+          }
+        }
+      }
+      return SupportSet(identities, features);
+    });
   }
 }

@@ -127,7 +127,7 @@ class ConnectionNegotiationManager {
     }
   }
 
-  bool isNegotiatorSupport(Function checkType) {
+  bool isNegotiatorSupport(Function(Negotiator) checkType) {
     var negotiators =
         supportedNegotiatorList.where((element) => checkType(element)).toList();
     // AmpNegotiator

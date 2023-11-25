@@ -203,3 +203,9 @@ class PresenceManager implements PresenceApi {
     _errorStreamController.add(errorEvent);
   }
 }
+
+extension PresenceManagerExtension on Connection {
+  PresenceManager getPresenceModule() {
+    return PresenceManager.getInstance(this);
+  }
+}

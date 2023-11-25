@@ -10,6 +10,7 @@ import '../../Connection.dart';
 import '../../data/Jid.dart';
 import '../../elements/stanzas/AbstractStanza.dart';
 import '../../elements/stanzas/IqStanza.dart';
+import '../../elements/stanzas/MessageStanza.dart';
 import '../../elements/forms/FieldElement.dart';
 
 class MessageArchiveManager {
@@ -154,7 +155,16 @@ class MessageArchiveManager {
   }
 
   void _processStanza(AbstractStanza? stanza) {
-    if (stanza is IqStanza) {
+    if (stanza is MessageStanza) {
+      try {
+        var archiveMessage = stanza.getArchiveMessage();
+        if (archiveMessage != null) {
+          listener!.onMessage(stanza);
+        }
+      } catch (e) {
+        // do nothing 
+      }
+    } else if (stanza is IqStanza) {
       if (stanza.type == IqStanzaType.RESULT) {
         var finMam = stanza.getChild('fin');
         if (finMam != null &&

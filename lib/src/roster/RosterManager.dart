@@ -138,3 +138,9 @@ class RosterManager {
     _rosterController.add(rosterList);
   }
 }
+
+extension RosterManagerExtension on Connection {
+  RosterManager getRosterModule() {
+    return RosterManager.getInstance(this);
+  }
+}

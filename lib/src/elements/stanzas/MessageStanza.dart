@@ -223,5 +223,6 @@ enum MessageStanzaType {
   HEADLINE,
   NORMAL,
   UNKOWN,
+  COMPOSITING,
   NONE
 }

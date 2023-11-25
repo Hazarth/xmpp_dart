@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:collection/collection.dart' show IterableExtension;
+import 'package:quiver/cache.dart';
 import 'package:xml/xml.dart' as xml;
 import 'package:synchronized/synchronized.dart';
 import 'package:xmpp_stone/src/ReconnectionManager.dart';
@@ -10,6 +11,7 @@ import 'package:xmpp_stone/src/data/Jid.dart';
 
 import 'package:xmpp_stone/src/elements/nonzas/Nonza.dart';
 import 'package:xmpp_stone/src/elements/stanzas/AbstractStanza.dart';
+import 'package:xmpp_stone/src/elements/stanzas/IqStanza.dart';
 import 'package:xmpp_stone/src/exception/XmppException.dart';
 import 'package:xmpp_stone/src/extensions/ping/PingManager.dart';
 import 'package:xmpp_stone/src/features/ConnectionNegotiationManager.dart';
@@ -71,6 +73,7 @@ class Connection {
   late String connectionId;
 
   String? _serverName;
+  Cache<String, Completer<AbstractStanza>> _future_cache = MapCache.lru(maximumSize: 20);
 
   static Connection getInstance(XmppAccountSettings account) {
     var connection = instances[account.fullJid.userAtDomain];
@@ -390,7 +393,12 @@ xml:lang='en'
           .whereType<xml.XmlElement>()
           .where((element) => stanzaMatcher(element))
           .map((xmlElement) => StanzaParser.parseStanza(xmlElement));
-      inStanza.forEach((stanza) => _inStanzaStreamController.add(stanza));
+      inStanza.forEach((stanza) {
+        _inStanzaStreamController.add(stanza);
+        if (stanza != null && stanza.id != null) {
+          _future_cache.get(stanza.id!).then((value) => value?.complete(stanza));
+        }
+      });
 
       final featureNegotiate = xmlResponse.descendants
           .whereType<xml.XmlElement>()
@@ -437,6 +445,15 @@ xml:lang='en'
       Log.e(this.toString(), 'Write exception $e');
       throw FailWriteSocketException();
     }
+  }
+
+  Future<AbstractStanza> queryStanza(AbstractStanza stanza) {
+    _outStanzaStreamController.add(stanza);
+    Completer<AbstractStanza> stanzaCompleter = Completer();
+    _future_cache.set(stanza.id!, stanzaCompleter);
+
+    write(stanza.buildXmlString());
+    return stanzaCompleter.future;
   }
 
   /// - stanza: AbstractStanza => Stanza in xml structure to write

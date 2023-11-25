@@ -105,7 +105,7 @@ class StanzaParser {
       stanza = _parseMessageStanza(id, element);
     } else if (element.name.local == 'presence') {
       stanza = _parsePresenceStanza(id, element);
-    }
+    } 
     stanza = parseMessageStanzaAttribute(stanza, element);
     element.attributes.forEach((xmlAttribute) {
       stanza!.addAttribute(

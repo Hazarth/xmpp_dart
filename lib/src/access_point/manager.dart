@@ -968,11 +968,17 @@ class ClientPingListener implements xmpp.PingListener {
 
 class ClientMAMListener implements xmpp.MessageArchiveListener {
   final Function onResultFinished;
+  final Function? onArchivedMessage;
 
-  const ClientMAMListener({required this.onResultFinished});
+  const ClientMAMListener({required this.onResultFinished, this.onArchivedMessage});
 
   @override
   void onFinish(MessageArchiveResult? iqStanza) {
     onResultFinished(iqStanza);
+  }
+
+  @override
+  void onMessage(MessageStanza? messageStanza) {
+    onArchivedMessage?.call(messageStanza);
   }
 }
